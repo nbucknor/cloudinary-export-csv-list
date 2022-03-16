@@ -15,11 +15,12 @@ Download list of all stored resources on Cloudinary as CSV file.
 https://atakanau.blogspot.com/2018/12/cloudinary-yuklu-tum-dosyalar-listeleme.html
 
 */
-	function src_read($resource_type,$next_cursor=false,$first=false){
+	function src_read($resource_type,$next_cursor=false){
 		$result = new stdClass();
-		$result -> output = '';
-		$result -> first = $first;
-		$output_new = '';
+		$result -> output = [];
+		$result -> column_names = [];
+		$output_new = [];
+		$column_names_new = [];
 		$handle = curl_init();
 
 /* 	Replace with your own parameters : 
@@ -38,55 +39,54 @@ https://atakanau.blogspot.com/2018/12/cloudinary-yuklu-tum-dosyalar-listeleme.ht
 			;
 		curl_setopt($handle, CURLOPT_URL, $url);
 		curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
-		$readed = curl_exec($handle);
+		$json_result = curl_exec($handle);
 		curl_close($handle);
-		$data=json_decode($readed, true);
+		$data=json_decode($json_result, true);
 
 		$result -> next_cursor = isset($data['next_cursor']) ? $data['next_cursor'] : false;
 		
 		if( isset($data['resources']) && count($data['resources']) ){
-			if( $result -> first ){
-				$result -> first = false;
-				foreach($data['resources'] as $rsc){
-					foreach ($rsc as $key => $value){
-						$output_new .= "$key\t";
-					}
-					$output_new .= "\r\n";
-					break;
-				}
-			}
-		
 			foreach($data['resources'] as $rsc){
-				foreach ($rsc as $key => $value){
-					if(is_array($value)) {
-						$output_new .= implode('|', $value) . "\t";
-					}
+				$row_new = [];
+			    foreach ($rsc as $key => $value){
+                    $column_names_new[$key] = $key;
+				    if(is_array($value)) {
+						$row_new[$key] = implode('|', $value);
+                    }
 					else {
-						$output_new .= "$value\t";
-					}
-
-				}
-				$output_new .= "\r\n";
+						$row_new[$key] = $value;
+                    }
+                }
+			    $output_new[] = $row_new;
 			}
 			$result -> output = $output_new;
+			$result -> column_names = $column_names_new;
 		}
 		
 		return $result;
 	}
 
+	$output_array = [];
 	$output = '';
-	$first = true;
+	$column_names = [];
 	$next_cursor = false;
 	$allowed_resource_types = ["raw","image","video"];
 	$resource_type = isset($_GET['resource_type']) ? (string) $_GET['resource_type'] : NULL;
 	if (in_array($resource_type, $allowed_resource_types)) {
 		do{
-			$r = src_read($resource_type,$next_cursor,$first);
-			$output .= $r -> output;
-			$first = $r-> first;
+			$r = src_read($resource_type,$next_cursor);
+			$output_array = array_merge($output_array, $r -> output);
+			$column_names = array_merge($column_names, $r -> column_names);
 		}while($next_cursor = $r -> next_cursor);
 
-        header("Content-type: application/octet-stream");
+		$output .= implode("\t", $column_names) . "\r\n";
+        foreach ($output_array as $row) {
+            $filled_row = array_fill_keys($column_names, '');
+            $row = array_merge($filled_row, $row);
+            $output .= implode("\t", $row) . "\r\n";
+        }
+
+		header("Content-type: application/octet-stream");
         header("Content-Disposition: attachment; filename=\"cloudinary-$resource_type-resources-list.csv\"");
         echo $output;
     }
