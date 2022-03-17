@@ -72,24 +72,20 @@ https://atakanau.blogspot.com/2018/12/cloudinary-yuklu-tum-dosyalar-listeleme.ht
 	$next_cursor = false;
 	$allowed_resource_types = ["raw","image","video"];
 	$resource_type = isset($_GET['resource_type']) ? (string) $_GET['resource_type'] : NULL;
-	if (in_array($resource_type, $allowed_resource_types)) {
+	$resource_types = ($resource_type) ? array_intersect($allowed_resource_types, [$resource_type]) : $allowed_resource_types;
+	foreach( $resource_types as $resource_type) {
 		do{
 			$r = src_read($resource_type,$next_cursor);
 			$output_array = array_merge($output_array, $r -> output);
 			$column_names = array_merge($column_names, $r -> column_names);
 		}while($next_cursor = $r -> next_cursor);
-
-		$output .= implode("\t", $column_names) . "\r\n";
-        foreach ($output_array as $row) {
-            $filled_row = array_fill_keys($column_names, '');
-            $row = array_merge($filled_row, $row);
-            $output .= implode("\t", $row) . "\r\n";
-        }
-
-		header("Content-type: application/octet-stream");
-        header("Content-Disposition: attachment; filename=\"cloudinary-$resource_type-resources-list.csv\"");
-        echo $output;
     }
-	else {
-	    echo 'Invalid resource type: $resource_type. You must provide a resource_type of "raw","image", or" video" in the url e.g. "/?resource_type=image".';
+    $output .= implode("\t", $column_names) . "\r\n";
+    foreach ($output_array as $row) {
+        $filled_row = array_fill_keys($column_names, '');
+        $row = array_merge($filled_row, $row);
+        $output .= implode("\t", $row) . "\r\n";
     }
+    header("Content-type: application/octet-stream");
+    header("Content-Disposition: attachment; filename=\"cloudinary-" . implode('-', $resource_types) ."-resources-list.csv\"");
+    echo $output;
